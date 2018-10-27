@@ -1,6 +1,7 @@
 
 import threading as thr
 import socket as sck
+from net.net_constants import NetConstants
 
 
 class ChatClient:
@@ -12,28 +13,47 @@ class ChatClient:
         self.host = host
         self.port = port
 
-        # TODO create mutex to avoid sending an receiving messages at the same time
-        #self.message_mutex = mutex
-        pass
-
     def start(self):
         self.sock.connect((self.host, self.port))
-        receiver = thr.Thread(target=self._receive).start()
-        listener = thr.Thread(target=self._listen).start()
+        receiver = thr.Thread(target=self._receive)
+        listener = thr.Thread(target=self._listen)
+
+        receiver.start()
+        listener.start()
 
         receiver.join()
         listener.join()
 
     def _receive(self):
         while True:
-            response = self.sock.recv(1024)
-            print(response)
+            try:
+                response = self.sock.recv(1024)
+            except sck.error:
+                print("Error occurred while reading data from server")
+                break
+            print(response.decode(NetConstants.ENCODING.value))
 
     def _listen(self):
         while True:
             message = input("Type your message")
-            self.sock.sendall(bytearray(message))
+            self.sock.sendall(message.encode(NetConstants.ENCODING.value))
 
 
 if __name__ == '__main__':
-    pass
+    import sys
+
+    host = 'localhost'
+    port = 8081
+
+    if len(sys.argv) == 3:
+        host = sys.argv[1]
+        port = sys.argv[2]
+    elif len(sys.argv) == 2:
+        host = sys.argv[1]
+    elif len(sys.argv) > 3:
+        print("Usage: {} [server-ip] [server-port]".format(sys.argv[0]))
+
+    print("Creating client at host: {0} and port: {1}".format(host, port))
+
+    client = ChatClient(host, port)
+    client.start()

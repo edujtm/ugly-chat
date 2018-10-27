@@ -1,6 +1,16 @@
 
 import socket as sck
 import threading as thr
+from net.net_constants import NetConstants
+
+
+def _blocking_clients(fun):
+    def block_fn(self, *args):
+        self.clients_mutex.acquire()
+        fun(self, *args)
+        self.clients_mutex.release()
+
+    return block_fn
 
 
 class ClientListener:
@@ -37,11 +47,11 @@ class ClientListener:
             self.server.send_message_to_all(msg)
 
     def print(self, message):
-        self.sock.sendall(message)
+        self.sock.sendall(message.encode(NetConstants.ENCODING.value))
 
     def get_name(self):
         if self.name == "Anom":
-            return self.name + "#" + self.client_id
+            return self.name + "#" + str(self.client_id)
         else:
             return self.name
 
@@ -77,8 +87,7 @@ class ChatServer:
         self.clients = []
         self.ID_COUNT = 0
 
-        # TODO Create mutex to protect reads and writes on the clients list
-        # self.clients_mutex = mutex
+        self.clients_mutex = thr.Lock()
         self.socket = sck.socket(sck.AF_INET, sck.SOCK_STREAM)
 
         self.socket.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
@@ -102,6 +111,7 @@ class ChatServer:
             self.clients.append(new_client)
             self.alert_new_client(new_client)
 
+    @_blocking_clients
     def alert_new_client(self, listener):
         """
             Alerts all other users that the user has disconnected
@@ -114,6 +124,7 @@ class ChatServer:
         for client in self.clients:
             client.print("The user {0} has connected.".format(listener.get_name()))
 
+    @_blocking_clients
     def alert_disconnect(self, listener):
         username = listener.get_name()
         self.clients.remove(listener)
@@ -121,10 +132,12 @@ class ChatServer:
         for client in self.clients:
             client.print("The user {0} has disconnected".format(username))
 
+    @_blocking_clients
     def send_message_to_all(self, message):
         for client in self.clients:
             client.print(message)
 
+    @_blocking_clients
     def send_private_message(self, cid, message):
         for client in self.clients:
             if client.id == cid:
