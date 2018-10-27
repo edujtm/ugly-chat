@@ -1,8 +1,16 @@
 
 import socket as sck
 import threading as thr
+from net.net_constants import NetConstants, ProtocolConstants
 
-BUFSIZE = 1024
+
+def _blocking_clients(fun):
+    def block_fn(self, *args):
+        self.clients_mutex.acquire()
+        fun(self, *args)
+        self.clients_mutex.release()
+    return block_fn
+
 
 class ClientListener:
     """
@@ -32,27 +40,30 @@ class ClientListener:
         """
         username = self.get_name()
 
-        self.sock.sendall("Welcome {}. Type anything to talk to the chat".format(username))
+        self.print("Welcome {}. Type anything to talk to the chat".format(username))
         while True:
             msg = self.sock.recv(1024)
-            
+
+            # TODO move this to _handle_protocol method
             if msg[0:4] == 'name(':
                 self.change_name(msg[4 : len(msg) - 1])
             elif msg[0:5] == 'list()':
                 # TODO
+                pass
             elif msg[0:7] == 'private(':
                 # TODO
+                pass
             elif msg[0:6] == 'leave()':
                 self.server.alert_disconnect(self)
-            else:    
+            else:
                 self.server.send_message_to_all(msg)
 
     def print(self, message):
-        self.sock.sendall(message)
+        self.sock.sendall(message.encode(NetConstants.ENCODING.value))
 
     def get_name(self):
         if self.name == "Anom":
-            return self.name + "#" + self.client_id
+            return self.name + "#" + str(self.client_id)
         else:
             return self.name
 
@@ -76,7 +87,7 @@ class ClientListener:
         """
         # TODO Create protocol Enum constants and different methods for handling each one of them
         raise NotImplementedError()
-    
+
 
 class ChatServer:
     """
@@ -98,8 +109,7 @@ class ChatServer:
         self.clients = []
         self.ID_COUNT = 0
 
-        # TODO Create mutex to protect reads and writes on the clients list
-        # self.clients_mutex = mutex
+        self.clients_mutex = thr.Lock()
         self.socket = sck.socket(sck.AF_INET, sck.SOCK_STREAM)
 
         self.socket.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
@@ -117,16 +127,20 @@ class ChatServer:
         while True:
             client_socket, client_address = self.socket.accept()
 
+            # TODO move this to listen method of ClientListener
             client_socket.send(bytes('If you\'d like to enter in the chat, please enter your name and press enter', 'utf8'))
-            name = client_socket.recv(BUFSIZE).decode('utf8')
+            name = client_socket.recv(NetConstants.BUFSIZE.value).decode('utf8')
 
             new_client = ClientListener(client_socket, self.ID_COUNT, self, name)
+            print("Client connected with id: {}".format(self.ID_COUNT))
             self.ID_COUNT += 1
 
             new_client.start()
+
             self.clients.append(new_client)
             self.alert_new_client(new_client)
 
+    @_blocking_clients
     def alert_new_client(self, listener):
         """
             Alerts all other users that the user has disconnected
@@ -138,17 +152,20 @@ class ChatServer:
 
         self.send_message_to_all("The user {0} has connected.".format(listener.get_name()))
 
+    @_blocking_clients
     def alert_disconnect(self, listener):
         username = listener.get_name()
-        self.listener.disconnect()
+        listener.disconnect()
         self.clients.remove(listener)
 
         self.send_message_to_all("The user {0} has disconnected".format(username))
 
+    @_blocking_clients
     def send_message_to_all(self, message):
         for client in self.clients:
             client.print(message)
 
+    @_blocking_clients
     def send_private_message(self, cid, message):
         for client in self.clients:
             if client.id == cid:
