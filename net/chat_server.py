@@ -12,6 +12,7 @@ def _blocking_clients(fun):
 
     return block_fn
 
+BUFSIZE = 1024
 
 class ClientListener:
     """
@@ -78,7 +79,7 @@ class ChatServer:
     """
     def __init__(self, host='localhost', port=8081):
         """
-            Keeps informartion about the host and port for debuging. The list clients
+            Keeps information about the host and port for debuging. The list clients
             keeps track of each user in the room so it's possible to send messages between them
 
         :param host: The host in which the server will be run on
@@ -106,6 +107,11 @@ class ChatServer:
         print("Server waiting for clients to connect...")
         while True:
             client_socket, client_address = self.socket.accept()
+
+            client_socket.send(bytes('If you\'d like to enter in the chat, please enter your name and press enter', 'utf8'))
+            name = client_socket.recv(BUFSIZE).decode('utf8')
+
+            new_client = ClientListener(client_socket, self.ID_COUNT, self, name)
             new_client = ClientListener(client_socket, self.ID_COUNT, self)
             print("Client connected with id: {}".format(self.ID_COUNT))
             self.ID_COUNT += 1
@@ -125,16 +131,14 @@ class ChatServer:
         if not isinstance(listener, ClientListener):
             raise TypeError("The listener parameter must be of the ClientListener class")
 
-        for client in self.clients:
-            client.print("The user {0} has connected.".format(listener.get_name()))
+        self.send_message_to_all("The user {0} has connected.".format(listener.get_name()))
 
     @_blocking_clients
     def alert_disconnect(self, listener):
         username = listener.get_name()
         self.clients.remove(listener)
 
-        for client in self.clients:
-            client.print("The user {0} has disconnected".format(username))
+        self.send_message_to_all("The user {0} has disconnected".format(username))
 
     @_blocking_clients
     def send_message_to_all(self, message):
