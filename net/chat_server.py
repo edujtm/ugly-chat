@@ -98,8 +98,6 @@ class ClientListener:
         :return: None
         """
 
-        print(data)
-
         protocol, content = _strip_content(data)
 
         if protocol == 'name':
@@ -113,8 +111,7 @@ class ClientListener:
             self.server.alert_disconnect(self)
         else:
             self.server.messages.append((self.get_name(), data))
-            print(self.server.messages)
-            # self.server.send_message_to_all(data)
+            self.server.send_message_to_all(self.get_name() + ': ' + data)
 
 
 class ChatServer:
