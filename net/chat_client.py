@@ -35,7 +35,7 @@ class ChatClient:
 
     def _listen(self):
         while True:
-            message = input("Type your message")
+            message = input("Type your message\n")
             self.sock.sendall(message.encode(NetConstants.ENCODING.value))
 
 

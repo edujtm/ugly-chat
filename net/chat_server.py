@@ -41,9 +41,11 @@ class ClientListener:
         """
         username = self.get_name()
 
-        self.sock.sendall("Welcome {}. Type anything to talk to the chat".format(username))
+        self.print("Welcome {}. Type anything to talk to the chat".format(username))
         while True:
             msg = self.sock.recv(1024)
+            msg = msg.decode(NetConstants.ENCODING.value)
+
             self.server.send_message_to_all(msg)
 
     def print(self, message):
@@ -105,9 +107,11 @@ class ChatServer:
         while True:
             client_socket, client_address = self.socket.accept()
             new_client = ClientListener(client_socket, self.ID_COUNT, self)
+            print("Client connected with id: {}".format(self.ID_COUNT))
             self.ID_COUNT += 1
 
             new_client.start()
+
             self.clients.append(new_client)
             self.alert_new_client(new_client)
 
