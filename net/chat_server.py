@@ -35,7 +35,17 @@ class ClientListener:
         self.sock.sendall("Welcome {}. Type anything to talk to the chat".format(username))
         while True:
             msg = self.sock.recv(1024)
-            self.server.send_message_to_all(msg)
+            
+            if msg[0:4] == 'name(':
+                self.change_name(msg[4 : len(msg) - 1])
+            elif msg[0:5] == 'list()':
+                # TODO
+            elif msg[0:7] == 'private(':
+                # TODO
+            elif msg[0:6] == 'leave()':
+                self.server.alert_disconnect(self)
+            else:    
+                self.server.send_message_to_all(msg)
 
     def print(self, message):
         self.sock.sendall(message)
@@ -45,6 +55,16 @@ class ClientListener:
             return self.name + "#" + self.client_id
         else:
             return self.name
+
+    def change_name(self, newName):
+        if self.name == newName:
+            self.sock.send(bytes('This name is already yours!', 'utf8'))
+        else:
+            self.server.send_message_to_all("The user {0} change their name to {1}.".format(self.name, newName))
+            self.name = newName
+
+    def disconnect(self):
+        self.sock.close()
 
     def _handle_protocol(self, data):
         """
@@ -56,7 +76,7 @@ class ClientListener:
         """
         # TODO Create protocol Enum constants and different methods for handling each one of them
         raise NotImplementedError()
-
+    
 
 class ChatServer:
     """
@@ -120,6 +140,7 @@ class ChatServer:
 
     def alert_disconnect(self, listener):
         username = listener.get_name()
+        self.listener.disconnect()
         self.clients.remove(listener)
 
         self.send_message_to_all("The user {0} has disconnected".format(username))
