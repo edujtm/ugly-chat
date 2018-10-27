@@ -1,11 +1,10 @@
 
 import threading as thr
 import socket as sck
-from net.net_constants import NetConstants
+from net_constants import NetConstants
 
 
 class ChatClient:
-    # TODO create a disconnect message that will end the listen and receive threads
     def __init__(self, host='localhost', port=8081):
 
         # TODO Maybe use makefile on socket so it uses a simpler interface
@@ -15,19 +14,29 @@ class ChatClient:
 
     def start(self):
         self.sock.connect((self.host, self.port))
+        self._handle_name()
+
         receiver = thr.Thread(target=self._receive)
         listener = thr.Thread(target=self._listen)
 
         receiver.start()
         listener.start()
-
         receiver.join()
         listener.join()
+
+    def _handle_name(self):
+        while True:
+            # TODO synchronize this method with server (for each recv there must be an send and vice-versa)
+            name = input("If you'd like to enter in the chat, please enter your name and press enter\n")
+            self.send(name)
+            data = self.sock.recv(NetConstants.BUFSIZE.value)
+            if data.decode(NetConstants.ENCODING.value) == NetConstants.NAME_OK.value:
+                break
 
     def _receive(self):
         while True:
             try:
-                response = self.sock.recv(1024)
+                response = self.sock.recv(NetConstants.BUFSIZE.value)
             except sck.error:
                 print("Error occurred while reading data from server")
                 break
@@ -35,8 +44,11 @@ class ChatClient:
 
     def _listen(self):
         while True:
-            message = input("Type your message\n")
+            message = input("Type your message: ")
             self.sock.sendall(message.encode(NetConstants.ENCODING.value))
+
+    def send(self, data):
+        self.sock.sendall(data.encode(NetConstants.ENCODING.value))
 
 
 if __name__ == '__main__':

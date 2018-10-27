@@ -1,7 +1,7 @@
 
 import socket as sck
 import threading as thr
-from net.net_constants import NetConstants, ProtocolConstants
+from net_constants import NetConstants, ProtocolConstants
 
 
 def _blocking_clients(fun):
@@ -11,17 +11,22 @@ def _blocking_clients(fun):
         self.clients_mutex.release()
     return block_fn
 
+def _strip_content(data):
+    separator = data.find('(')
+    protocol, content = data[:separator], data[separator+1:-1]
+    return protocol, content
 
 class ClientListener:
     """
         The listener waits for user messages and handles
         the different kind of messages from the user.
     """
-    def __init__(self, sock, cid, server, name=None):
+    def __init__(self, sock, port, cid, server, name=None):
         if name is None:
             name = "Anom"
 
         self.sock = sock
+        self.port = port
         self.name = name
         self.client_id = cid
         self.server = server
@@ -38,25 +43,16 @@ class ClientListener:
             Method body for message listening thread.
         :return: None
         """
-        username = self.get_name()
+        self._init_name()
 
+        username = self.get_name()
+        
         self.print("Welcome {}. Type anything to talk to the chat".format(username))
         while True:
             msg = self.sock.recv(1024)
 
-            # TODO move this to _handle_protocol method
-            if msg[0:4] == 'name(':
-                self.change_name(msg[4 : len(msg) - 1])
-            elif msg[0:5] == 'list()':
-                # TODO
-                pass
-            elif msg[0:7] == 'private(':
-                # TODO
-                pass
-            elif msg[0:6] == 'leave()':
-                self.server.alert_disconnect(self)
-            else:
-                self.server.send_message_to_all(msg)
+            decoded = msg.decode(NetConstants.ENCODING.value)
+            self._handle_protocol(decoded)
 
     def print(self, message):
         self.sock.sendall(message.encode(NetConstants.ENCODING.value))
@@ -69,14 +65,28 @@ class ClientListener:
 
     def change_name(self, newName):
         if self.name == newName:
-            self.sock.send(bytes('This name is already yours!', 'utf8'))
+            self.print('This name is already yours!')
         else:
-            self.server.send_message_to_all("The user {0} change their name to {1}.".format(self.name, newName))
+            self.server.send_message_to_all("The user {0} changed his name to {1}.".format(self.name, newName))
             self.name = newName
 
     def disconnect(self):
         self.sock.close()
 
+    def _init_name(self):
+        # self.print('If you\'d like to enter in the chat, please enter your name and press enter\n')
+        name = ''
+        while True:
+            name = self.sock.recv(NetConstants.BUFSIZE.value).decode('utf8')
+            if name not in self.server.names:
+                break                
+            self.print('This name is already in use, please enter another one!')
+
+        self.print(NetConstants.NAME_OK.value)
+        self.server.names.add(name)
+        self.print('You can chat now :)')
+        self.change_name(name)
+    
     def _handle_protocol(self, data):
         """
             Responsible for handling different kind of messages from the user (private, all),
@@ -85,8 +95,20 @@ class ClientListener:
         :param data: The data received from the client socket
         :return: None
         """
-        # TODO Create protocol Enum constants and different methods for handling each one of them
-        raise NotImplementedError()
+
+        protocol, content = _strip_content(data)
+
+        if protocol == 'name':
+            self.change_name(content)
+        elif protocol == 'list':
+            self.server.listClients(False, self)
+        elif protocol == 'private':
+            # TODO
+            pass
+        elif protocol == 'leave':
+            self.server.alert_disconnect(self)
+        else:
+            self.server.send_message_to_all(data)
 
 
 class ChatServer:
@@ -108,6 +130,7 @@ class ChatServer:
         self.port = port
         self.clients = []
         self.ID_COUNT = 0
+        self.names = set()
 
         self.clients_mutex = thr.Lock()
         self.socket = sck.socket(sck.AF_INET, sck.SOCK_STREAM)
@@ -127,11 +150,8 @@ class ChatServer:
         while True:
             client_socket, client_address = self.socket.accept()
 
-            # TODO move this to listen method of ClientListener
-            client_socket.send(bytes('If you\'d like to enter in the chat, please enter your name and press enter', 'utf8'))
-            name = client_socket.recv(NetConstants.BUFSIZE.value).decode('utf8')
+            new_client = ClientListener(client_socket, client_address, self.ID_COUNT, self)
 
-            new_client = ClientListener(client_socket, self.ID_COUNT, self, name)
             print("Client connected with id: {}".format(self.ID_COUNT))
             self.ID_COUNT += 1
 
@@ -154,6 +174,10 @@ class ChatServer:
 
     @_blocking_clients
     def alert_disconnect(self, listener):
+
+        if not isinstance(listener, ClientListener):
+            raise TypeError("The listener parameter must be of the ClientListener class")
+
         username = listener.get_name()
         listener.disconnect()
         self.clients.remove(listener)
@@ -166,10 +190,19 @@ class ChatServer:
             client.print(message)
 
     @_blocking_clients
-    def send_private_message(self, cid, message):
+    def send_private_message(self, name, message):
         for client in self.clients:
-            if client.id == cid:
+            if client.name == name:
                 client.print(message)
+
+    @_blocking_clients
+    def listClients(self, isServer, client=None):
+        if isServer:
+            for client in self.clients:
+                print("<{0}, {1}, {2}>".format(client.get_name(), client.sock, client.port))
+        elif client is not None:
+            for item in self.clients:
+                client.print("<{0}, {1}, {2}>".format(item.get_name(), item.sock, item.port))
 
 
 if __name__ == '__main__':
@@ -186,3 +219,4 @@ if __name__ == '__main__':
 
     server = ChatServer(host, port)
     server.start()
+

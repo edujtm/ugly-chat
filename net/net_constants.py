@@ -5,8 +5,8 @@ import enum
 class NetConstants(enum.Enum):
     ENCODING = 'utf-8'
     BUFSIZE = 1024
-
+    NAME_OK = 'NAME_OK'
 
 class ProtocolConstants(enum.Enum):
-    INIT = 0
+    CHANGE_NAME = "name"
     MESSAGE = 1
