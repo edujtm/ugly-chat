@@ -9,7 +9,6 @@ def _blocking_clients(fun):
         self.clients_mutex.acquire()
         fun(self, *args)
         self.clients_mutex.release()
-
     return block_fn
 
 
@@ -45,12 +44,15 @@ class ClientListener:
         while True:
             msg = self.sock.recv(1024)
 
+            # TODO move this to _handle_protocol method
             if msg[0:4] == 'name(':
                 self.change_name(msg[4 : len(msg) - 1])
             elif msg[0:5] == 'list()':
                 # TODO
+                pass
             elif msg[0:7] == 'private(':
                 # TODO
+                pass
             elif msg[0:6] == 'leave()':
                 self.server.alert_disconnect(self)
             else:
@@ -125,6 +127,7 @@ class ChatServer:
         while True:
             client_socket, client_address = self.socket.accept()
 
+            # TODO move this to listen method of ClientListener
             client_socket.send(bytes('If you\'d like to enter in the chat, please enter your name and press enter', 'utf8'))
             name = client_socket.recv(NetConstants.BUFSIZE.value).decode('utf8')
 
@@ -152,7 +155,7 @@ class ChatServer:
     @_blocking_clients
     def alert_disconnect(self, listener):
         username = listener.get_name()
-        self.listener.disconnect()
+        listener.disconnect()
         self.clients.remove(listener)
 
         self.send_message_to_all("The user {0} has disconnected".format(username))
