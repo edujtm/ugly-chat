@@ -1,7 +1,7 @@
 
 import socket as sck
 import threading as thr
-from net.net_constants import NetConstants
+from net.net_constants import NetConstants, ProtocolConstants
 
 
 def _blocking_clients(fun):
@@ -12,7 +12,6 @@ def _blocking_clients(fun):
 
     return block_fn
 
-BUFSIZE = 1024
 
 class ClientListener:
     """
@@ -58,7 +57,7 @@ class ClientListener:
         else:
             return self.name
 
-    def _handle_protocol(self, data):
+    def _handle_protocol(self, message):
         """
             Responsible for handling different kind of messages from the user (private, all),
             configuration options or disconnect requests.
@@ -109,10 +108,9 @@ class ChatServer:
             client_socket, client_address = self.socket.accept()
 
             client_socket.send(bytes('If you\'d like to enter in the chat, please enter your name and press enter', 'utf8'))
-            name = client_socket.recv(BUFSIZE).decode('utf8')
+            name = client_socket.recv(NetConstants.BUFSIZE.value).decode('utf8')
 
             new_client = ClientListener(client_socket, self.ID_COUNT, self, name)
-            new_client = ClientListener(client_socket, self.ID_COUNT, self)
             print("Client connected with id: {}".format(self.ID_COUNT))
             self.ID_COUNT += 1
 
