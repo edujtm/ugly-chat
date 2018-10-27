@@ -36,18 +36,20 @@ class ClientListener:
             Creates a thread that will listen for client messages.
         :return: None
         """
-        thr.Thread(target=self.listen).start()
+        listen = thr.Thread(target=self.listen)
+        listen.start()
 
     def listen(self):
         """
             Method body for message listening thread.
         :return: None
         """
+
         self._init_name()
 
         username = self.get_name()
         
-        self.print("Welcome {}. Type anything to talk to the chat".format(username))
+        self.print("Welcome {}. Type anything to talk to the chat.\n".format(username))
         while True:
             msg = self.sock.recv(1024)
 
@@ -65,9 +67,9 @@ class ClientListener:
 
     def change_name(self, newName):
         if self.name == newName:
-            self.print('This name is already yours!')
+            self.print('This name is already yours!\n')
         else:
-            self.server.send_message_to_all("The user {0} changed his name to {1}.".format(self.name, newName))
+            self.server.send_message_to_all("The user {0} changed his name to {1}.\n".format(self.name, newName))
             self.name = newName
 
     def disconnect(self):
@@ -80,7 +82,7 @@ class ClientListener:
             name = self.sock.recv(NetConstants.BUFSIZE.value).decode('utf8')
             if name not in self.server.names:
                 break                
-            self.print('This name is already in use, please enter another one!')
+            self.print('This name is already in use, please enter another one!\n')
 
         self.print(NetConstants.NAME_OK.value)
         self.server.names.add(name)
@@ -96,6 +98,8 @@ class ClientListener:
         :return: None
         """
 
+        print(data)
+
         protocol, content = _strip_content(data)
 
         if protocol == 'name':
@@ -108,7 +112,9 @@ class ClientListener:
         elif protocol == 'leave':
             self.server.alert_disconnect(self)
         else:
-            self.server.send_message_to_all(data)
+            self.server.messages.append((self.get_name(), data))
+            print(self.server.messages)
+            # self.server.send_message_to_all(data)
 
 
 class ChatServer:
@@ -137,6 +143,8 @@ class ChatServer:
 
         self.socket.setsockopt(sck.SOL_SOCKET, sck.SO_REUSEADDR, 1)
 
+        self.messages = []
+
     def start(self):
         """
             Starts listening for new users, Creating a thread for each and
@@ -146,13 +154,13 @@ class ChatServer:
         """
         self.socket.bind((self.host, self.port))
         self.socket.listen(5)
-        print("Server waiting for clients to connect...")
+        print("Server waiting for clients to connect...\n")
         while True:
             client_socket, client_address = self.socket.accept()
 
             new_client = ClientListener(client_socket, client_address, self.ID_COUNT, self)
 
-            print("Client connected with id: {}".format(self.ID_COUNT))
+            print("Client connected with id: {}\n".format(self.ID_COUNT))
             self.ID_COUNT += 1
 
             new_client.start()
@@ -160,7 +168,7 @@ class ChatServer:
             self.clients.append(new_client)
             self.alert_new_client(new_client)
 
-    @_blocking_clients
+    
     def alert_new_client(self, listener):
         """
             Alerts all other users that the user has disconnected
@@ -170,9 +178,8 @@ class ChatServer:
         if not isinstance(listener, ClientListener):
             raise TypeError("The listener parameter must be of the ClientListener class")
 
-        self.send_message_to_all("The user {0} has connected.".format(listener.get_name()))
+        self.send_message_to_all("The user {0} has connected.\n".format(listener.get_name()))
 
-    @_blocking_clients
     def alert_disconnect(self, listener):
 
         if not isinstance(listener, ClientListener):
@@ -182,27 +189,24 @@ class ChatServer:
         listener.disconnect()
         self.clients.remove(listener)
 
-        self.send_message_to_all("The user {0} has disconnected".format(username))
+        self.send_message_to_all("The user {0} has disconnected.\n".format(username))
 
-    @_blocking_clients
     def send_message_to_all(self, message):
         for client in self.clients:
             client.print(message)
 
-    @_blocking_clients
     def send_private_message(self, name, message):
         for client in self.clients:
             if client.name == name:
                 client.print(message)
 
-    @_blocking_clients
     def listClients(self, isServer, client=None):
         if isServer:
             for client in self.clients:
-                print("<{0}, {1}, {2}>".format(client.get_name(), client.sock, client.port))
+                print("<{0}, {1}, {2}>".format(client.get_name(), client.port[0], client.port[1]))
         elif client is not None:
             for item in self.clients:
-                client.print("<{0}, {1}, {2}>".format(item.get_name(), item.sock, item.port))
+                client.print("<{0}, {1}, {2}>".format(item.get_name(), item.port[0], item.port[1]))
 
 
 if __name__ == '__main__':
@@ -212,11 +216,15 @@ if __name__ == '__main__':
     port = 8081
 
     if len(sys.argv) != 3:
-        print('Usage: {0} [host-ip] [host-port]'.format(sys.argv[0]))
+        print('Usage: {0} [host-ip] [host-port]\n'.format(sys.argv[0]))
     else:
         host = sys.argv[1]
         port = int(sys.argv[2])
 
+
     server = ChatServer(host, port)
-    server.start()
+
+    startThr = thr.Thread(target=server.start())
+    startThr.start()
+    startThr.join()
 

@@ -25,13 +25,8 @@ class ChatClient:
         listener.join()
 
     def _handle_name(self):
-        while True:
-            # TODO synchronize this method with server (for each recv there must be an send and vice-versa)
-            name = input("If you'd like to enter in the chat, please enter your name and press enter\n")
-            self.send(name)
-            data = self.sock.recv(NetConstants.BUFSIZE.value)
-            if data.decode(NetConstants.ENCODING.value) == NetConstants.NAME_OK.value:
-                break
+        name = input("If you'd like to enter in the chat, please enter your name and press enter\n")
+        self.send(name)
 
     def _receive(self):
         while True:
@@ -45,7 +40,7 @@ class ChatClient:
     def _listen(self):
         while True:
             message = input("Type your message: ")
-            self.sock.sendall(message.encode(NetConstants.ENCODING.value))
+            self.send(message)
 
     def send(self, data):
         self.sock.sendall(data.encode(NetConstants.ENCODING.value))
