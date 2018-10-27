@@ -44,9 +44,17 @@ class ClientListener:
         self.print("Welcome {}. Type anything to talk to the chat".format(username))
         while True:
             msg = self.sock.recv(1024)
-            msg = msg.decode(NetConstants.ENCODING.value)
 
-            self.server.send_message_to_all(msg)
+            if msg[0:4] == 'name(':
+                self.change_name(msg[4 : len(msg) - 1])
+            elif msg[0:5] == 'list()':
+                # TODO
+            elif msg[0:7] == 'private(':
+                # TODO
+            elif msg[0:6] == 'leave()':
+                self.server.alert_disconnect(self)
+            else:
+                self.server.send_message_to_all(msg)
 
     def print(self, message):
         self.sock.sendall(message.encode(NetConstants.ENCODING.value))
@@ -57,7 +65,17 @@ class ClientListener:
         else:
             return self.name
 
-    def _handle_protocol(self, message):
+    def change_name(self, newName):
+        if self.name == newName:
+            self.sock.send(bytes('This name is already yours!', 'utf8'))
+        else:
+            self.server.send_message_to_all("The user {0} change their name to {1}.".format(self.name, newName))
+            self.name = newName
+
+    def disconnect(self):
+        self.sock.close()
+
+    def _handle_protocol(self, data):
         """
             Responsible for handling different kind of messages from the user (private, all),
             configuration options or disconnect requests.
@@ -134,6 +152,7 @@ class ChatServer:
     @_blocking_clients
     def alert_disconnect(self, listener):
         username = listener.get_name()
+        self.listener.disconnect()
         self.clients.remove(listener)
 
         self.send_message_to_all("The user {0} has disconnected".format(username))
