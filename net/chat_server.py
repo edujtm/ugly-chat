@@ -1,7 +1,8 @@
 
+import sys
 import socket as sck
 import threading as thr
-from net_constants import NetConstants, ProtocolConstants
+from net.net_constants import NetConstants, ProtocolConstants
 
 
 def _blocking_clients(fun):
@@ -11,10 +12,12 @@ def _blocking_clients(fun):
         self.clients_mutex.release()
     return block_fn
 
+
 def _strip_content(data):
     separator = data.find('(')
     protocol, content = data[:separator], data[separator+1:-1]
     return protocol, content
+
 
 class ClientListener:
     """
@@ -46,9 +49,10 @@ class ClientListener:
         """
 
         self._init_name()
+        self.server.alert_new_client(self)
 
         username = self.get_name()
-        
+
         self.print("Welcome {}. Type anything to talk to the chat.\n".format(username))
         while True:
             msg = self.sock.recv(1024)
@@ -65,29 +69,30 @@ class ClientListener:
         else:
             return self.name
 
-    def change_name(self, newName):
+    def change_name(self, newName, broadcast=True):
         if self.name == newName:
             self.print('This name is already yours!\n')
         else:
-            self.server.send_message_to_all("The user {0} changed his name to {1}.\n".format(self.name, newName))
+            if broadcast:
+                self.server.send_message_to_all("The user {0} changed his name to {1}.\n".format(self.name, newName))
             self.name = newName
 
     def disconnect(self):
         self.sock.close()
+        sys.exit()
 
     def _init_name(self):
-        # self.print('If you\'d like to enter in the chat, please enter your name and press enter\n')
         name = ''
         while True:
             name = self.sock.recv(NetConstants.BUFSIZE.value).decode('utf8')
-            if name not in self.server.names:
+            if name not in self.server.clients.keys():
                 break                
             self.print('This name is already in use, please enter another one!\n')
 
-        self.print(NetConstants.NAME_OK.value)
-        self.server.names.add(name)
+        self.print(ProtocolConstants.NAME_OK.value)
+        self.server.clients[name] = self
+        self.change_name(name, broadcast=False)
         self.print('You can chat now :)')
-        self.change_name(name)
     
     def _handle_protocol(self, data):
         """
@@ -126,14 +131,16 @@ class ChatServer:
             Keeps information about the host and port for debuging. The list clients
             keeps track of each user in the room so it's possible to send messages between them
 
+            The clients dictionary will contain a mapping from each unique username to the client
+            listener that will listen for request of that user.
+
         :param host: The host in which the server will be run on
         :param port: The port where the server will listen for clients
         """
         self.host = host
         self.port = port
-        self.clients = []
+        self.clients = {}
         self.ID_COUNT = 0
-        self.names = set()
 
         self.clients_mutex = thr.Lock()
         self.socket = sck.socket(sck.AF_INET, sck.SOCK_STREAM)
@@ -162,10 +169,6 @@ class ChatServer:
 
             new_client.start()
 
-            self.clients.append(new_client)
-            self.alert_new_client(new_client)
-
-    
     def alert_new_client(self, listener):
         """
             Alerts all other users that the user has disconnected
@@ -183,27 +186,30 @@ class ChatServer:
             raise TypeError("The listener parameter must be of the ClientListener class")
 
         username = listener.get_name()
-        listener.disconnect()
-        self.clients.remove(listener)
+        self.clients.pop(username)
 
-        self.send_message_to_all("The user {0} has disconnected.\n".format(username))
+        quit_message = "The user {0} has disconnected.\n".format(username)
+        print(quit_message)
+        self.send_message_to_all(quit_message)
+        listener.disconnect()
 
     def send_message_to_all(self, message):
-        for client in self.clients:
+        for username, client in self.clients:
             client.print(message)
 
-    def send_private_message(self, name, message):
-        for client in self.clients:
-            if client.name == name:
-                client.print(message)
+    def send_private_message(self, client_sending, name, message):
+        try:
+            self.clients[name].print(message)
+        except KeyError:
+            client_sending.print("User is not present in this chat room")
 
     def listClients(self, isServer, client=None):
         if isServer:
             for client in self.clients:
                 print("<{0}, {1}, {2}>".format(client.get_name(), client.port[0], client.port[1]))
         elif client is not None:
-            for item in self.clients:
-                client.print("<{0}, {1}, {2}>".format(item.get_name(), item.port[0], item.port[1]))
+            for username, item in self.clients:
+                client.print("<{0}, {1}, {2}>".format(username, item.port[0], item.port[1]))
 
 
 if __name__ == '__main__':
@@ -217,7 +223,6 @@ if __name__ == '__main__':
     else:
         host = sys.argv[1]
         port = int(sys.argv[2])
-
 
     server = ChatServer(host, port)
 
