@@ -1,13 +1,12 @@
 
 import threading as thr
 import socket as sck
-from net_constants import NetConstants
+from net.net_constants import NetConstants, ProtocolConstants
 
 
 class ChatClient:
     def __init__(self, host='localhost', port=8081):
 
-        # TODO Maybe use makefile on socket so it uses a simpler interface
         self.sock = sck.socket(sck.AF_INET, sck.SOCK_STREAM)
         self.host = host
         self.port = port
@@ -21,12 +20,18 @@ class ChatClient:
 
         receiver.start()
         listener.start()
+
         receiver.join()
         listener.join()
 
     def _handle_name(self):
         name = input("If you'd like to enter in the chat, please enter your name and press enter\n")
-        self.send(name)
+        while True:
+            self.send(name)
+            response = self.sock.recv(NetConstants.BUFSIZE.value).decode(NetConstants.ENCODING.value)
+            if response == ProtocolConstants.NAME_OK.value:
+                break
+            print(response)
 
     def _receive(self):
         while True:
@@ -35,12 +40,17 @@ class ChatClient:
             except sck.error:
                 print("Error occurred while reading data from server")
                 break
+            if not response:                # Waits for eof from the server. eof is sent when the socket is closed
+                print("Quitting chat...")
+                break
             print(response.decode(NetConstants.ENCODING.value))
 
     def _listen(self):
         while True:
-            message = input("Type your message: ")
+            message = input()
             self.send(message)
+            if message == "leave()":
+                break
 
     def send(self, data):
         self.sock.sendall(data.encode(NetConstants.ENCODING.value))
