@@ -2,7 +2,7 @@
 import sys
 import socket as sck
 import threading as thr
-from net.net_constants import NetConstants, ProtocolConstants
+from net_constants import NetConstants, ProtocolConstants
 
 
 def _blocking_clients(fun):
