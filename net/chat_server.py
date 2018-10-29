@@ -1,8 +1,8 @@
 
-import sys
+import re
 import socket as sck
 import threading as thr
-from net_constants import NetConstants, ProtocolConstants
+from net.net_constants import NetConstants, ProtocolConstants
 
 
 def _blocking_clients(fun):
@@ -17,6 +17,20 @@ def _strip_content(data):
     separator = data.find('(')
     protocol, content = data[:separator], data[separator+1:-1]
     return protocol, content
+
+
+def get_private_message(data):
+    match = re.compile(',[\s]?').search(data)
+    if match is not None:
+        username, message = data[:match.start()], data[match.end():]
+    else:
+        raise WrongFormatException("Error on private message, formatting must be: 'private(username, message)'")
+    return username, message
+
+
+class WrongFormatException(Exception):
+    def __init__(self, message):
+        super(WrongFormatException, self).__init__(message)
 
 
 class ClientListener:
@@ -110,8 +124,11 @@ class ClientListener:
         elif protocol == 'list':
             self.server.listClients(False, self)
         elif protocol == 'private':
-            # TODO
-            pass
+            try:
+                username, message = get_private_message(content)
+                self.server.send_private_message(self, username, message)
+            except WrongFormatException as fmt_error:
+                self.print(str(fmt_error))
         elif protocol == 'leave':
             self.server.alert_disconnect(self)
         else:
@@ -197,10 +214,12 @@ class ChatServer:
             client.print(message)
 
     def send_private_message(self, client_sending, name, message):
+        private_msg = client_sending.get_name() + " (private): " + message
         try:
-            self.clients[name].print(message)
+            self.clients[name].print(private_msg)
+            client_sending.print(private_msg)
         except KeyError:
-            client_sending.print("User is not present in this chat room")
+            client_sending.print("User {} is not present in this chat room".format(name))
 
     def listClients(self, isServer, client=None):
         if isServer:

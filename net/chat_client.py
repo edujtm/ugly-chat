@@ -25,8 +25,9 @@ class ChatClient:
         listener.join()
 
     def _handle_name(self):
-        name = input("If you'd like to enter in the chat, please enter your name and press enter\n")
+        print("If you'd like to enter in the chat, please enter your name and press enter\n")
         while True:
+            name = input()
             self.send(name)
             response = self.sock.recv(NetConstants.BUFSIZE.value).decode(NetConstants.ENCODING.value)
             if response == ProtocolConstants.NAME_OK.value:
