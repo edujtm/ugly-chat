@@ -1,4 +1,4 @@
-
+import sys
 import threading as thr
 import socket as sck
 from net_constants import NetConstants, ProtocolConstants
@@ -41,8 +41,9 @@ class ChatClient:
             except sck.error:
                 print("Error occurred while reading data from server")
                 break
-            if not response:                # Waits for eof from the server. eof is sent when the socket is closed
+            if not response or response == ProtocolConstants.CLOSE_CONN.value:                # Waits for eof from the server. eof is sent when the socket is closed
                 print("Quitting chat...")
+                sys.exit()
                 break
             print(response.decode(NetConstants.ENCODING.value))
 

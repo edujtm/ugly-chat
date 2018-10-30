@@ -86,10 +86,15 @@ class ClientListener:
     def change_name(self, newName, broadcast=True):
         if self.name == newName:
             self.print('This name is already yours!\n')
+        elif newName in self.server.clients.keys():
+            self.print('This name is already in use!\n')
         else:
             if broadcast:
                 self.server.send_message_to_all("The user {0} changed his name to {1}.\n".format(self.name, newName))
+            if self.name in self.server.clients.keys():
+                self.server.clients.pop(self.name, None)
             self.name = newName
+            self.server.clients[newName] = self
 
     def disconnect(self):
         self.sock.close()
@@ -104,9 +109,8 @@ class ClientListener:
             self.print('This name is already in use, please enter another one!\n')
 
         self.print(ProtocolConstants.NAME_OK.value)
-        self.server.clients[name] = self
         self.change_name(name, broadcast=False)
-        self.print('You can chat now :)')
+        self.print('You can chat now :)\n')
     
     def _handle_protocol(self, data):
         """
@@ -126,7 +130,10 @@ class ClientListener:
         elif protocol == 'private':
             try:
                 username, message = get_private_message(content)
-                self.server.send_private_message(self, username, message)
+                if username in self.server.clients.keys():
+                    self.server.send_private_message(self, username, message)
+                else:
+                    self.print('This user does not exist!\n')
             except WrongFormatException as fmt_error:
                 self.print(str(fmt_error))
         elif protocol == 'leave':
@@ -191,7 +198,6 @@ class ChatServer:
             
             self._handle_protocol(command)
 
-
     def alert_new_client(self, listener):
         """
             Alerts all other users that the user has disconnected
@@ -232,15 +238,16 @@ class ChatServer:
     def listClients(self, isServer, client=None):
         if isServer:
             for client in self.clients.values():
-                print("<{0}, {1}, {2}>".format(client.get_name(), client.port[0], client.port[1]))
+                print("<{0}, {1}, {2}>\n".format(client.get_name(), client.port[0], client.port[1]))
         elif client is not None:
             for username, item in self.clients.items():
-                client.print("<{0}, {1}, {2}>".format(username, item.port[0], item.port[1]))
+                client.print("<{0}, {1}, {2}>\n".format(username, item.port[0], item.port[1]))
 
     def disconnectAll(self):
-        for client in self.clients:
-            client.print('This chat is closed, you\'re disconnected')
-            client.sock.close()
+        for client in self.clients.values():
+            client.print("This chat is closed, you\'re now disconnected")
+            client.print(ProtocolConstants.CLOSE_CONN.value)
+            client.disconnect()
         print('Server shutdown')
         sys.exit()
 
@@ -275,10 +282,12 @@ if __name__ == '__main__':
 
     server = ChatServer(host, port)
 
-    startThr = thr.Thread(target=server.start())
-    commandThr = thr.Thread(target=server.listenCommand())
+    startThr = thr.Thread(target=server.start)
+    commandThr = thr.Thread(target=server.listenCommand)
 
     commandThr.start()
-
     startThr.start()
+
+    startThr.join()
+    commandThr.join()
 
