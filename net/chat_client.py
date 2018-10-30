@@ -1,7 +1,7 @@
 
 import threading as thr
 import socket as sck
-from net.net_constants import NetConstants, ProtocolConstants
+from net_constants import NetConstants, ProtocolConstants
 
 
 class ChatClient:

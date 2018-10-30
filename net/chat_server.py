@@ -2,7 +2,7 @@
 import re
 import socket as sck
 import threading as thr
-from net.net_constants import NetConstants, ProtocolConstants
+from net_constants import NetConstants, ProtocolConstants
 
 
 def _blocking_clients(fun):
@@ -185,6 +185,13 @@ class ChatServer:
 
             new_client.start()
 
+    def listenCommand(self):
+        while True:
+            command = input()
+            
+            self._handle_protocol(command)
+
+
     def alert_new_client(self, listener):
         """
             Alerts all other users that the user has disconnected
@@ -210,6 +217,7 @@ class ChatServer:
         listener.disconnect()
 
     def send_message_to_all(self, message):
+        print(message)
         for client in self.clients.values():
             client.print(message)
 
@@ -229,6 +237,29 @@ class ChatServer:
             for username, item in self.clients.items():
                 client.print("<{0}, {1}, {2}>".format(username, item.port[0], item.port[1]))
 
+    def disconnectAll(self):
+        for client in self.clients:
+            client.print('This chat is closed, you\'re disconnected')
+            client.sock.close()
+        print('Server shutdown')
+        sys.exit()
+
+    def _handle_protocol(self, data):
+        """
+            Responsible for handling different kind of commands
+            configuration options or disconnect requests.
+
+        :param data: The data received from the client socket
+        :return: None
+        """
+
+        protocol, content = _strip_content(data)
+
+        if protocol == 'list':
+            self.listClients(True, self)
+        elif protocol == 'leave':
+            self.disconnectAll()
+
 
 if __name__ == '__main__':
     import sys
@@ -245,6 +276,9 @@ if __name__ == '__main__':
     server = ChatServer(host, port)
 
     startThr = thr.Thread(target=server.start())
+    commandThr = thr.Thread(target=server.listenCommand())
+
+    commandThr.start()
+
     startThr.start()
-    startThr.join()
 
